@@ -1,0 +1,37 @@
+{
+  "name": "envsync-cli",
+  "version": "0.1.0",
+  "description": "Sync development environments for Angular teams",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "envsync": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "clean": "rimraf dist"
+  },
+  "keywords": ["angular", "dev-environment", "sync", "cli"],
+  "author": "Vinicio",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "execa": "^9.5.2",
+    "inquirer": "^12.3.0",
+    "ora": "^8.1.1",
+    "semver": "^7.6.3",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^22.10.5",
+    "@types/semver": "^7.5.8",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
