@@ -5,6 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import yaml from 'yaml';
 import { EnvSyncConfig } from '../types/index.types.js';
 import { AngularDetector } from '../core/angular-detector.js';
+import { verbose, error, success, gray } from '../utils/logger.js';
 
 interface UpdateOptions {
   yes?: boolean;
@@ -13,23 +14,25 @@ interface UpdateOptions {
 export async function updateCommand(options: UpdateOptions) {
   console.log(chalk.blue.bold('\n⬆️  EnvSync Update - Update Configuration\n'));
 
-  // 1. Verificar que existe envsync.yaml
+  // 1. Verify that envsync.yaml exists
   if (!existsSync('envsync.yaml')) {
-    console.log(chalk.red('❌ envsync.yaml not found!'));
-    console.log(chalk.gray('Run: envsync init\n'));
+    error('envsync.yaml not found!');
+    gray('Run: envsync init\n');
     process.exit(1);
   }
 
-  // 2. Leer configuración actual
+  // 2. Read current configuration
+  verbose('Reading current envsync.yaml configuration');
   const configFile = readFileSync('envsync.yaml', 'utf8');
   const currentConfig: EnvSyncConfig = yaml.parse(configFile);
+  verbose(`Current config for project: ${currentConfig.project.name}`);
 
-  console.log(chalk.gray('Current configuration:'));
-  console.log(chalk.gray(`  Angular: ${currentConfig.project.angularVersion || 'N/A'}`));
-  console.log(chalk.gray(`  Node: ${currentConfig.runtime.node}`));
-  console.log(chalk.gray(`  Package Manager: ${currentConfig.runtime.packageManager}\n`));
+  gray('Current configuration:');
+  gray(`  Angular: ${currentConfig.project.angularVersion || 'N/A'}`);
+  gray(`  Node: ${currentConfig.runtime.node}`);
+  gray(`  Package Manager: ${currentConfig.runtime.packageManager}\n`);
 
-  // 3. Detectar proyecto actual
+  // 3. Detect current project
   const spinner = ora('Detecting current project state...').start();
   const detector = new AngularDetector();
 
@@ -37,24 +40,24 @@ export async function updateCommand(options: UpdateOptions) {
   try {
     angularProject = await detector.detectAngularProject();
     
-    // Verificar si angularProject es null
+    // Verify if angularProject is null
     if (!angularProject) {
       spinner.fail('Not an Angular project');
-      console.log(chalk.red('\n❌ This is not an Angular project'));
-      console.log(chalk.gray('envsync update can only be used in Angular projects.\n'));
+      error('This is not an Angular project');
+      gray('envsync update can only be used in Angular projects.\n');
       process.exit(1);
     }
-    
+
     spinner.succeed('Project detected');
-  } catch (error: any) {
+  } catch (err: any) {
     spinner.fail('Detection failed');
-    console.log(chalk.red('\n❌ Could not detect Angular project'));
-    console.log(chalk.gray(error.message));
-    console.log(chalk.gray('\nMake sure you are in an Angular project directory.\n'));
+    error('Could not detect Angular project');
+    gray(err.message);
+    gray('\nMake sure you are in an Angular project directory.\n');
     process.exit(1);
   }
 
-  // 4. Comparar versiones
+  // 4. Compare versions
   const updates: Array<{
     field: string;
     current: string;
@@ -106,11 +109,13 @@ export async function updateCommand(options: UpdateOptions) {
     });
   }
 
-  // 5. Mostrar actualizaciones disponibles
+  // 5. Show available updates
   if (updates.length === 0) {
-    console.log(chalk.green('\n✨ Configuration is up to date! No updates needed.\n'));
+    success('Configuration is up to date! No updates needed.\n');
     return;
   }
+
+  verbose(`Found ${updates.length} update(s) available`);
 
   console.log(chalk.yellow('\n📋 Updates available:\n'));
   updates.forEach((update, i) => {
@@ -120,7 +125,7 @@ export async function updateCommand(options: UpdateOptions) {
     console.log();
   });
 
-  // 6. Confirmar actualización
+  // 6. Confirm update
   if (!options.yes) {
     const { shouldUpdate } = await inquirer.prompt([
       {
@@ -132,12 +137,12 @@ export async function updateCommand(options: UpdateOptions) {
     ]);
 
     if (!shouldUpdate) {
-      console.log(chalk.gray('Update cancelled.\n'));
+      gray('Update cancelled.\n');
       return;
     }
   }
 
-  // 7. Actualizar configuración
+  // 7. Update configuration
   const spinner2 = ora('Updating envsync.yaml...').start();
 
   const updatedConfig: EnvSyncConfig = {
@@ -161,7 +166,7 @@ export async function updateCommand(options: UpdateOptions) {
 
   spinner2.succeed('envsync.yaml updated!');
 
-  // 8. Preguntar si quiere sincronizar
+  // 8. Ask if wants to synchronize
   console.log();
   if (!options.yes) {
     const { shouldSync } = await inquirer.prompt([
@@ -178,8 +183,8 @@ export async function updateCommand(options: UpdateOptions) {
       const { syncCommand } = await import('./sync.js');
       await syncCommand({ yes: false });
     } else {
-      console.log(chalk.gray('\nTo apply changes later, run:'));
-      console.log(chalk.gray('  envsync sync\n'));
+      gray('\nTo apply changes later, run:');
+      gray('  envsync sync\n');
     }
   } else {
     console.log();

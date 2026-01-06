@@ -12,28 +12,31 @@ import {
   hasVSCodeCLI,
 } from '../utils/system.js';
 import { EnvSyncConfig } from '../types/index.types.js';
+import { verbose, error, warning, success, gray } from '../utils/logger.js';
 
 export async function tryCommand() {
   console.log(chalk.blue.bold('\n🔍 EnvSync Doctor - Health Check\n'));
 
-  // Verificar que existe envsync.yaml
+  // Verify that envsync.yaml exists
   if (!existsSync('envsync.yaml')) {
-    console.log(chalk.red('❌ envsync.yaml not found!'));
-    console.log(chalk.gray('Run: envsync init\n'));
+    error('envsync.yaml not found!');
+    gray('Run: envsync init\n');
     process.exit(1);
   }
 
-  // Leer configuración
+  // Read configuration
+  verbose('Reading envsync.yaml configuration file');
   const configFile = readFileSync('envsync.yaml', 'utf8');
   const config: EnvSyncConfig = yaml.parse(configFile);
+  verbose(`Loaded config for project: ${config.project.name}`);
 
-  console.log(chalk.gray(`Project: ${config.project.name}`));
-  console.log(chalk.gray(`Type: Angular ${config.project.angularVersion || 'N/A'}\n`));
+  gray(`Project: ${config.project.name}`);
+  gray(`Type: Angular ${config.project.angularVersion || 'N/A'}\n`);
 
   const issues: string[] = [];
   let healthScore = 100;
 
-  // Crear tabla de resultados
+  // Create results table
   const table = new Table({
     head: [
       chalk.bold('Check'),
@@ -220,7 +223,7 @@ export async function tryCommand() {
     healthScore -= 15;
   }
 
-  // Mostrar tabla
+  // Display table
   console.log(table.toString());
 
   // Health Score
@@ -234,7 +237,7 @@ export async function tryCommand() {
 
   console.log(`\n📊 Health Score: ${scoreColor.bold(healthScore + '/100')}`);
 
-  // Emoji según score
+  // Emoji based on score
   const emoji =
     healthScore >= 90
       ? '🎉'
@@ -246,21 +249,21 @@ export async function tryCommand() {
     healthScore >= 90 ? 'Excellent' : healthScore >= 70 ? 'Good' : 'Needs Attention'
   )}\n`);
 
-  // Mostrar issues
+  // Display issues
   if (issues.length > 0) {
-    console.log(chalk.yellow('Issues found:\n'));
+    warning(`Found ${issues.length} issue(s):\n`);
     issues.forEach((issue, i) => {
-      console.log(chalk.gray(`  ${i + 1}. ${issue}`));
+      gray(`  ${i + 1}. ${issue}`);
     });
     console.log();
     console.log(chalk.blue('💡 Recommendation:'));
-    console.log(chalk.gray('   Run: envsync sync\n'));
+    gray('   Run: envsync sync\n');
   } else {
-    console.log(chalk.green('✨ Everything looks perfect!\n'));
-    console.log(chalk.gray('You\'re ready to develop:\n'));
-    console.log(chalk.gray('   ng serve\n'));
+    success('Everything looks perfect!\n');
+    gray('You\'re ready to develop:\n');
+    gray('   ng serve\n');
   }
 
-  // Exit code según health score
+  // Exit code based on health score
   process.exit(healthScore >= 70 ? 0 : 1);
 }

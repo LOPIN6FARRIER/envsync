@@ -3,22 +3,26 @@ import { join } from 'path';
 import { execa } from 'execa';
 import { AngularProject } from '../types/index.types';
 
-
+/**
+ * Detects and analyzes Angular projects
+ * Provides information about Angular version, Node requirements, and project structure
+ */
 export class AngularDetector {
-  
+
   /**
-   * Detecta si el directorio actual es un proyecto Angular
+   * Checks if the current directory is an Angular project
+   * @returns true if the directory contains angular.json or has @angular/core as a dependency
    */
   async isAngularProject(): Promise<boolean> {
     const angularJsonPath = join(process.cwd(), 'angular.json');
     const packageJsonPath = join(process.cwd(), 'package.json');
 
-    // Verificar si existe angular.json
+    // Check if angular.json exists
     if (existsSync(angularJsonPath)) {
       return true;
     }
 
-    // Verificar si package.json tiene Angular como dependencia
+    // Check if package.json has Angular as a dependency
     if (existsSync(packageJsonPath)) {
       const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
       return !!(
@@ -31,7 +35,8 @@ export class AngularDetector {
   }
 
   /**
-   * Obtiene información completa del proyecto Angular
+   * Detects and returns complete Angular project information
+   * @returns AngularProject object with version, tooling, and configuration details, or null if not an Angular project
    */
   async detectAngularProject(): Promise<AngularProject | null> {
     const isAngular = await this.isAngularProject();
@@ -44,24 +49,24 @@ export class AngularDetector {
     }
 
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-    
-    // Obtener versión de Angular
+
+    // Get Angular version
     const angularVersion = this.getAngularVersion(packageJson);
-    
-    // Recomendar Node según versión de Angular
+
+    // Recommend Node version based on Angular version
     const nodeVersion = this.getRecommendedNodeVersion(angularVersion);
-    
-    // Detectar package manager
+
+    // Detect package manager
     const packageManager = this.detectPackageManager();
-    
-    // Detectar Nx
+
+    // Detect Nx
     const hasNx = !!(
       packageJson.dependencies?.['nx'] ||
       packageJson.devDependencies?.['nx'] ||
       existsSync(join(process.cwd(), 'nx.json'))
     );
-    
-    // Verificar Angular CLI global
+
+    // Check for global Angular CLI
     const hasCLI = await this.hasAngularCLI();
 
     return {
@@ -74,10 +79,13 @@ export class AngularDetector {
   }
 
   /**
-   * Extrae versión de Angular del package.json
+   * Extracts the Angular version from package.json
+   * @param packageJson - The parsed package.json object
+   * @returns The Angular version without prefix characters (^, ~)
+   * @throws Error if @angular/core is not found in dependencies
    */
   getAngularVersion(packageJson: any): string {
-    const angularCore = 
+    const angularCore =
       packageJson.dependencies?.['@angular/core'] ||
       packageJson.devDependencies?.['@angular/core'];
 
@@ -85,13 +93,15 @@ export class AngularDetector {
       throw new Error('@angular/core not found in dependencies');
     }
 
-    // Limpiar versión: "^17.1.0" -> "17.1.0"
+    // Clean version: "^17.1.0" -> "17.1.0"
     return angularCore.replace(/[\^~]/g, '');
   }
 
   /**
-   * Recomienda Node según versión de Angular
-   * Basado en: https://angular.io/guide/versions
+   * Recommends the appropriate Node.js version for a given Angular version
+   * Based on official Angular documentation: https://angular.io/guide/versions
+   * @param angularVersion - The Angular version (e.g., "17.1.0")
+   * @returns The recommended Node.js version
    */
   getRecommendedNodeVersion(angularVersion: string): string {
     const majorVersion = parseInt(angularVersion.split('.')[0]);
@@ -109,7 +119,8 @@ export class AngularDetector {
   }
 
   /**
-   * Detecta package manager por lockfile
+   * Detects the package manager by checking for lockfiles
+   * @returns The detected package manager ('npm', 'pnpm', or 'yarn')
    */
   private detectPackageManager(): 'npm' | 'pnpm' | 'yarn' {
     if (existsSync('pnpm-lock.yaml')) return 'pnpm';
@@ -118,7 +129,8 @@ export class AngularDetector {
   }
 
   /**
-   * Verifica si tiene Angular CLI instalado
+   * Checks if Angular CLI is installed globally or locally
+   * @returns true if the 'ng' command is available, false otherwise
    */
   private async hasAngularCLI(): Promise<boolean> {
     try {
@@ -130,7 +142,9 @@ export class AngularDetector {
   }
 
   /**
-   * Obtiene extensiones VSCode recomendadas
+   * Returns a list of recommended VSCode extensions for Angular development
+   * @param hasNx - Whether the project uses Nx
+   * @returns Array of extension IDs
    */
   getRecommendedExtensions(hasNx: boolean = false): string[] {
     const extensions = [
@@ -149,11 +163,13 @@ export class AngularDetector {
   }
 
   /**
-   * Genera la versión correcta de Angular CLI
+   * Generates the correct Angular CLI package specifier for installation
+   * @param angularVersion - The Angular version
+   * @returns Package string for installation (e.g., "@angular/cli@17.1.0")
    */
   getAngularCLIVersion(angularVersion: string): string {
     return `@angular/cli@${angularVersion}`;
   }
 
-  
+
 }

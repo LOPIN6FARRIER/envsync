@@ -13,9 +13,17 @@
     "start": "node dist/index.js",
     "clean": "rimraf dist"
   },
-  "keywords": ["angular", "dev-environment", "sync", "cli"],
+  "keywords": ["angular", "dev-environment", "sync", "cli", "node", "npm", "version-management"],
   "author": "Vinicio",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LOPIN6FARRIER/envsync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LOPIN6FARRIER/envsync/issues"
+  },
+  "homepage": "https://github.com/LOPIN6FARRIER/envsync#readme",
   "dependencies": {
     "chalk": "^5.3.0",
     "cli-table3": "^0.6.5",

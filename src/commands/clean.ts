@@ -4,6 +4,7 @@ import inquirer from 'inquirer';
 import { existsSync } from 'fs';
 import { execa } from 'execa';
 import { platform } from 'os';
+import { verbose, error, success, gray, yellow,blue} from '../utils/logger.js';
 
 interface CleanOptions {
   yes?: boolean;
@@ -11,16 +12,18 @@ interface CleanOptions {
 }
 
 export async function cleanCommand(options: CleanOptions) {
-  console.log(chalk.blue.bold('\n🧹 EnvSync Clean - Reset Environment\n'));
+  blue('\n🧹 EnvSync Clean - Reset Environment\n');
 
-  // 1. Verificar que estamos en un proyecto
+  // 1. Verify that we are in a project
   if (!existsSync('package.json')) {
-    console.log(chalk.red('❌ No package.json found!'));
-    console.log(chalk.gray('This command must be run in a project directory.\n'));
+    error('No package.json found!');
+    gray('This command must be run in a project directory.\n');
     process.exit(1);
   }
 
-  // 2. Mostrar qué se va a limpiar
+  verbose('Scanning for files to clean...');
+
+  // 2. Show what will be cleaned
   const itemsToClean: string[] = [];
 
   if (existsSync('node_modules')) {
@@ -49,17 +52,19 @@ export async function cleanCommand(options: CleanOptions) {
   }
 
   if (itemsToClean.length === 0) {
-    console.log(chalk.green('✨ Nothing to clean! Directory is already clean.\n'));
+    success('Nothing to clean! Directory is already clean.\n');
     return;
   }
 
-  console.log(chalk.yellow('⚠️  The following will be removed:\n'));
+  verbose(`Found ${itemsToClean.length} item(s) to clean`);
+
+  yellow('⚠️  The following will be removed:\n');
   itemsToClean.forEach((item) => {
-    console.log(chalk.gray(`  • ${item}`));
+    gray(`  • ${item}`);
   });
   console.log();
 
-  // 3. Confirmar
+  // 3. Confirm
   if (!options.yes) {
     const { shouldClean } = await inquirer.prompt([
       {
@@ -71,17 +76,17 @@ export async function cleanCommand(options: CleanOptions) {
     ]);
 
     if (!shouldClean) {
-      console.log(chalk.gray('Cancelled.\n'));
+      gray('Cancelled.\n');
       return;
     }
   }
 
-  // 4. Limpiar
+  // 4. Clean
   const isWindows = platform() === 'win32';
   const spinner = ora('Cleaning...').start();
 
   try {
-    // Eliminar node_modules
+    // Remove node_modules
     if (existsSync('node_modules')) {
       spinner.text = 'Removing node_modules...';
       if (isWindows) {
@@ -93,7 +98,7 @@ export async function cleanCommand(options: CleanOptions) {
       }
     }
 
-    // Eliminar lockfiles
+    // Remove lockfiles
     const lockfiles = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'];
     for (const lockfile of lockfiles) {
       if (existsSync(lockfile)) {
@@ -106,7 +111,7 @@ export async function cleanCommand(options: CleanOptions) {
       }
     }
 
-    // Eliminar cache y dist si --all
+    // Remove cache and dist if --all
     if (options.all) {
       if (existsSync('.angular')) {
         spinner.text = 'Removing .angular cache...';
@@ -133,7 +138,7 @@ export async function cleanCommand(options: CleanOptions) {
 
     spinner.succeed('Cleaned successfully!');
 
-    // 5. Preguntar si quiere reinstalar
+    // 5. Ask if wants to reinstall
     console.log();
     if (!options.yes) {
       const { shouldReinstall } = await inquirer.prompt([
@@ -148,16 +153,16 @@ export async function cleanCommand(options: CleanOptions) {
       if (shouldReinstall) {
         await reinstallDependencies();
       } else {
-        console.log(chalk.gray('\nTo reinstall later, run:'));
-        console.log(chalk.gray('  npm install\n'));
+        gray('\nTo reinstall later, run:');
+        gray('  npm install\n');
       }
     } else {
       await reinstallDependencies();
     }
-  } catch (error: any) {
+  } catch (err: any) {
     spinner.fail('Clean failed');
-    console.log(chalk.red('\n❌ Error during clean:'));
-    console.error(error.message);
+    error('Error during clean:');
+    console.error(err.message);
     process.exit(1);
   }
 }
@@ -171,14 +176,14 @@ async function reinstallDependencies() {
     await execa('npm', ['install'], { stdio: 'inherit' });
     spinner.succeed('Dependencies installed!');
 
-    console.log(chalk.green('\n✅ Clean and reinstall complete!\n'));
-    console.log(chalk.gray('You can now run:'));
-    console.log(chalk.gray('  ng serve\n'));
-  } catch (error) {
+    success('Clean and reinstall complete!\n');
+    gray('You can now run:');
+    gray('  ng serve\n');
+  } catch (err) {
     spinner.fail('Installation failed');
-    console.log(chalk.red('\n❌ npm install failed'));
-    console.log(chalk.gray('Try running manually:'));
-    console.log(chalk.gray('  npm install\n'));
+    error('npm install failed');
+    gray('Try running manually:');
+    gray('  npm install\n');
     process.exit(1);
   }
 }

@@ -19,6 +19,7 @@ import {
 } from "../utils/system.js";
 import { EnvSyncConfig } from "../types/index.types.js";
 import { join } from "path";
+import { verbose, error, warning, success, info, gray, blue, yellow } from "../utils/logger.js";
 
 interface SyncOptions {
   yes?: boolean;
@@ -27,36 +28,72 @@ interface SyncOptions {
 export async function syncCommand(options: SyncOptions) {
   console.log(chalk.blue.bold("\n🔄 EnvSync - Syncing Angular Environment\n"));
 
-  // 1. Verificar que existe envsync.yaml
   if (!existsSync("envsync.yaml")) {
-    console.log(chalk.red("❌ envsync.yaml not found!"));
-    console.log(chalk.gray("Run: envsync init\n"));
+    error("envsync.yaml not found!");
+    gray("Run: envsync init\n");
     process.exit(1);
   }
 
-  // 2. Leer configuración
+  verbose("Reading envsync.yaml configuration file");
   const configFile = readFileSync("envsync.yaml", "utf8");
   const config: EnvSyncConfig = yaml.parse(configFile);
+  verbose(`Loaded config for project: ${config.project.name}`);
 
-  console.log(chalk.gray(`Project: ${config.project.name}`));
-  console.log(
-    chalk.gray(`Angular: ${config.project.angularVersion || "N/A"}\n`)
-  );
+  gray(`Project: ${config.project.name}`);
+  gray(`Angular: ${config.project.angularVersion || "N/A"}\n`);
 
   let hasErrors = false;
   const issues: string[] = [];
 
+  // Helper function to normalize script values
+  const normalizeScript = (script: any): string => {
+    if (typeof script === "string") {
+      return script;
+    }
+    if (typeof script === "object" && script !== null) {
+      // YAML parsed "echo 'text: value'" as { 'echo \'text': 'value\'' }
+      const entries = Object.entries(script);
+      if (entries.length === 1) {
+        const [key, value] = entries[0];
+        return `${key}: ${value}`;
+      }
+    }
+    return String(script);
+  };
+
   try {
-    // 3. Verificar/Cambiar Node.js
+    if (config.scripts?.["pre-sync"] && config.scripts["pre-sync"].length > 0) {
+      yellow("⚠️  pre-sync scripts will be executed as raw shell commands\n");
+      blue("\n⚙️  Running pre-sync scripts...\n");
+
+      for (const rawScript of config.scripts["pre-sync"]) {
+        const script = normalizeScript(rawScript);
+        const spinner = ora(`Running: ${script}`).start();
+
+        try {
+          await execa(script, {
+            stdio: "inherit",
+            shell: true,
+            env: process.env,
+            timeout: 1000 * 60 * 5,
+          });
+
+          spinner.succeed(`${script} ✓`);
+        } catch (error) {
+          spinner.fail(`Failed: ${script}`);
+          throw error;
+        }
+      }
+    }
+
     const spinner1 = ora("Checking Node.js version...").start();
     const currentNode = await getCurrentNodeVersion();
+    verbose(`Current Node.js version detected: ${currentNode}`);
 
     if (!currentNode) {
       spinner1.fail("Node.js is not installed");
-      console.log(chalk.red("\n❌ Node.js not found"));
-      console.log(
-        chalk.gray("Please install Node.js from: https://nodejs.org/\n")
-      );
+      error("Node.js not found");
+      gray("Please install Node.js from: https://nodejs.org/\n");
       process.exit(1);
     }
 
@@ -65,13 +102,11 @@ export async function syncCommand(options: SyncOptions) {
         `Node.js: ${currentNode} (expected ${config.runtime.node})`
       );
 
-      // Verificar si tiene nvm
       const nvmInstalled = await hasNVM();
 
       if (nvmInstalled) {
         console.log(chalk.blue("\n🔧 Fixing Node.js version with nvm...\n"));
 
-        // Verificar si la versión requerida está instalada
         const versionInstalled = await isNodeVersionInstalled(
           config.runtime.node
         );
@@ -83,16 +118,15 @@ export async function syncCommand(options: SyncOptions) {
           try {
             await installNodeVersion(config.runtime.node);
             spinner1a.succeed(`Node.js ${config.runtime.node} installed ✓`);
-          } catch (error: any) {
+          } catch (err: any) {
             spinner1a.fail(`Failed to install Node.js ${config.runtime.node}`);
-            console.log(chalk.red("\n❌ Installation failed"));
-            console.log(chalk.gray("Please install manually:"));
-            console.log(chalk.gray(`  nvm install ${config.runtime.node}\n`));
+            error("Installation failed");
+            gray("Please install manually:");
+            gray(`  nvm install ${config.runtime.node}\n`);
             hasErrors = true;
           }
         }
 
-        // Cambiar a la versión correcta
         const spinner1b = ora(
           `Switching to Node.js ${config.runtime.node}...`
         ).start();
@@ -100,21 +134,19 @@ export async function syncCommand(options: SyncOptions) {
           await useNodeVersion(config.runtime.node);
           spinner1b.succeed(`Node.js ${config.runtime.node} activated ✓`);
 
-          // Crear .nvmrc para auto-switching futuro
           await createNvmrc(config.runtime.node);
-          console.log(chalk.gray(`  ✓ Created .nvmrc file\n`));
-        } catch (error: any) {
+          gray(`  ✓ Created .nvmrc file\n`);
+        } catch (err: any) {
           spinner1b.fail(`Failed to switch Node.js version`);
-          console.log(chalk.red("\n❌ Switch failed"));
-          console.log(chalk.gray("Please switch manually:"));
-          console.log(chalk.gray(`  nvm use ${config.runtime.node}\n`));
+          error("Switch failed");
+          gray("Please switch manually:");
+          gray(`  nvm use ${config.runtime.node}\n`);
           hasErrors = true;
         }
       } else {
-        // No tiene nvm instalado - Ofrecer instalarlo
-        console.log(chalk.yellow("\n⚠️  Node.js version mismatch"));
-        console.log(chalk.gray("Current version:", currentNode));
-        console.log(chalk.gray("Required version:", config.runtime.node));
+        warning("Node.js version mismatch");
+        gray("Current version:", currentNode);
+        gray("Required version:", config.runtime.node);
 
         if (!options.yes) {
           console.log(
@@ -141,21 +173,14 @@ export async function syncCommand(options: SyncOptions) {
             );
             process.exit(0);
           } else {
-            console.log(chalk.gray("\nTo install nvm manually:"));
-            console.log(
-              chalk.gray("Windows: https://github.com/coreybutler/nvm-windows")
-            );
-            console.log(
-              chalk.gray("Mac/Linux: https://github.com/nvm-sh/nvm\n")
-            );
+            gray("\nTo install nvm manually:");
+            gray("Windows: https://github.com/coreybutler/nvm-windows");
+            gray("Mac/Linux: https://github.com/nvm-sh/nvm\n");
           }
         } else {
-          // Modo automático (-y flag)
-          console.log(chalk.gray("\nTo fix this, install nvm:"));
-          console.log(
-            chalk.gray("Windows: https://github.com/coreybutler/nvm-windows")
-          );
-          console.log(chalk.gray("Mac/Linux: https://github.com/nvm-sh/nvm\n"));
+          gray("\nTo fix this, install nvm:");
+          gray("Windows: https://github.com/coreybutler/nvm-windows");
+          gray("Mac/Linux: https://github.com/nvm-sh/nvm\n");
         }
 
         issues.push(
@@ -166,7 +191,6 @@ export async function syncCommand(options: SyncOptions) {
       spinner1.succeed(`Node.js: ${currentNode} ✓`);
     }
 
-    // 4. Verificar/Instalar package manager
     const spinner2 = ora("Checking package manager...").start();
     const [pm, pmVersion] = config.runtime.packageManager.includes("@")
       ? config.runtime.packageManager.split("@")
@@ -189,7 +213,6 @@ export async function syncCommand(options: SyncOptions) {
       spinner2.succeed(`Package manager: ${pm} ✓`);
     }
 
-    // 5. Instalar dependencias globales
     if (config.dependencies?.global && config.dependencies.global.length > 0) {
       const spinner3 = ora("Checking global dependencies...").start();
 
@@ -216,20 +239,15 @@ export async function syncCommand(options: SyncOptions) {
       spinner3.succeed("Global dependencies checked ✓");
     }
 
-    // 6. Instalar extensiones VSCode
     if (config.extensions?.vscode && config.extensions.vscode.length > 0) {
       const hasVSCode = await hasVSCodeCLI();
 
       if (!hasVSCode) {
-        console.log(chalk.yellow("\n⚠️  VSCode CLI not found"));
-        console.log(chalk.gray("Extensions will be skipped. To enable:"));
-        console.log(chalk.gray("  1. Open VSCode"));
-        console.log(chalk.gray("  2. Press Ctrl+Shift+P (Cmd+Shift+P on Mac)"));
-        console.log(
-          chalk.gray(
-            '  3. Type: "Shell Command: Install code command in PATH"\n'
-          )
-        );
+        yellow("\n⚠️  VSCode CLI not found");
+        gray("Extensions will be skipped. To enable:");
+        gray("  1. Open VSCode");
+        gray("  2. Press Ctrl+Shift+P (Cmd+Shift+P on Mac)");
+        gray('  3. Type: "Shell Command: Install code command in PATH"\n');
       } else {
         const spinner4 = ora("Installing VSCode extensions...").start();
 
@@ -254,71 +272,75 @@ export async function syncCommand(options: SyncOptions) {
         spinner4.succeed("VSCode extensions checked ✓");
       }
     }
+    if (
+      config.scripts?.["post-sync"] &&
+      config.scripts["post-sync"].length > 0
+    ) {
+      console.log(chalk.blue("\n📦 Running post-sync scripts...\n"));
 
-    // 7. Ejecutar scripts post-sync
-    // 7. Ejecutar scripts post-sync
-if (
-  config.scripts?.["post-sync"] &&
-  config.scripts["post-sync"].length > 0
-) {
-  console.log(chalk.blue("\n📦 Running post-sync scripts...\n"));
+      for (const rawScript of config.scripts["post-sync"]) {
+        const script = normalizeScript(rawScript);
+        const spinner5 = ora(`Running: ${script}`).start();
 
-  for (const script of config.scripts["post-sync"]) {
-    const spinner5 = ora(`Running: ${script}`).start();
+        try {
+          const [cmd, ...args] = script.split(" ");
 
-    try {
-      const [cmd, ...args] = script.split(" ");
-      
-      // Skip husky si no está en package.json
-      if (cmd === "npx" && args[0] === "husky") {
-        const packageJsonPath = join(process.cwd(), "package.json");
-        if (existsSync(packageJsonPath)) {
-          const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
-          const hasHusky = 
-            packageJson.dependencies?.husky ||
-            packageJson.devDependencies?.husky;
-          
-          if (!hasHusky) {
-            spinner5.info(`${script} (skipped - husky not in package.json)`);
-            continue;
+          if (cmd === "npx" && args[0] === "husky") {
+            const packageJsonPath = join(process.cwd(), "package.json");
+            if (existsSync(packageJsonPath)) {
+              const packageJson = JSON.parse(
+                readFileSync(packageJsonPath, "utf8")
+              );
+              const hasHusky =
+                packageJson.dependencies?.husky ||
+                packageJson.devDependencies?.husky;
+
+              if (!hasHusky) {
+                spinner5.info(
+                  `${script} (skipped - husky not in package.json)`
+                );
+                continue;
+              }
+            }
+          }
+
+          await execa(script, {
+            stdio: "inherit",
+            shell: true,
+            env: process.env,
+          });
+
+          spinner5.succeed(`${script} ✓`);
+        } catch (error) {
+          if (script.includes("audit fix")) {
+            spinner5.warn(`${script} (had issues, but continuing)`);
+          } else {
+            spinner5.fail(`Failed: ${script}`);
+            hasErrors = true;
           }
         }
       }
-      
-      await execa(cmd, args, { stdio: "inherit" });
-      spinner5.succeed(`${script} ✓`);
-    } catch (error) {
-      // No marcar como error si es audit fix (es opcional)
-      if (script.includes("audit fix")) {
-        spinner5.warn(`${script} (had issues, but continuing)`);
-      } else {
-        spinner5.fail(`Failed: ${script}`);
-        hasErrors = true;
-      }
     }
-  }
-}
 
-    // 8. Resumen final
     console.log();
     if (hasErrors) {
-      console.log(chalk.yellow("⚠️  Sync completed with some errors\n"));
+      warning("Sync completed with some errors\n");
     } else if (issues.length > 0) {
-      console.log(chalk.yellow("⚠️  Sync completed with warnings\n"));
-      console.log(chalk.gray("Issues:"));
+      warning("Sync completed with warnings\n");
+      gray("Issues:");
       issues.forEach((issue, i) => {
-        console.log(chalk.gray(`  ${i + 1}. ${issue}`));
+        gray(`  ${i + 1}. ${issue}`);
       });
       console.log();
     } else {
-      console.log(chalk.green("✅ Environment synced successfully!\n"));
-      console.log(chalk.gray("🎉 You're ready to code!\n"));
-      console.log(chalk.gray("Start development:"));
-      console.log(chalk.gray("  ng serve\n"));
+      success("Environment synced successfully!\n");
+      gray("🎉 You're ready to code!\n");
+      gray("Start development:");
+      gray("  ng serve\n");
     }
-  } catch (error: any) {
-    console.log(chalk.red("\n❌ Sync failed\n"));
-    console.error(error.message);
+  } catch (err: any) {
+    error("Sync failed\n");
+    console.error(err.message);
     process.exit(1);
   }
 }

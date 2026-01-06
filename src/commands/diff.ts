@@ -11,23 +11,26 @@ import {
   hasVSCodeCLI,
 } from '../utils/system.js';
 import { EnvSyncConfig } from '../types/index.types.js';
+import { verbose, error, gray } from '../utils/logger.js';
 
 export async function diffCommand() {
   console.log(chalk.blue.bold('\n🔍 EnvSync Diff - Environment Comparison\n'));
 
-  // 1. Verificar que existe envsync.yaml
+  // 1. Verify that envsync.yaml exists
   if (!existsSync('envsync.yaml')) {
-    console.log(chalk.red('❌ envsync.yaml not found!'));
-    console.log(chalk.gray('Run: envsync init\n'));
+    error('envsync.yaml not found!');
+    gray('Run: envsync init\n');
     process.exit(1);
   }
 
-  // 2. Leer configuración
+  // 2. Read configuration
+  verbose('Reading envsync.yaml configuration file');
   const configFile = readFileSync('envsync.yaml', 'utf8');
   const config: EnvSyncConfig = yaml.parse(configFile);
+  verbose(`Loaded config for project: ${config.project.name}`);
 
-  console.log(chalk.gray(`Project: ${config.project.name}`));
-  console.log(chalk.gray(`Type: ${config.project.type} ${config.project.angularVersion || ''}\n`));
+  gray(`Project: ${config.project.name}`);
+  gray(`Type: ${config.project.type} ${config.project.angularVersion || ''}\n`);
 
   const differences: Array<{
     component: string;
@@ -36,7 +39,7 @@ export async function diffCommand() {
     status: 'match' | 'mismatch' | 'missing';
   }> = [];
 
-  // 3. Verificar Node.js
+  // 3. Check Node.js
   const currentNode = await getCurrentNodeVersion();
   differences.push({
     component: 'Node.js',
@@ -45,7 +48,7 @@ export async function diffCommand() {
     status: currentNode === config.runtime.node ? 'match' : currentNode ? 'mismatch' : 'missing',
   });
 
-  // 4. Verificar NVM
+  // 4. Check NVM
   const nvmInstalled = await hasNVM();
   differences.push({
     component: 'NVM',
@@ -54,7 +57,7 @@ export async function diffCommand() {
     status: nvmInstalled ? 'match' : 'missing',
   });
 
-  // 5. Verificar .nvmrc
+  // 5. Check .nvmrc
   const nvmrcExists = existsSync('.nvmrc');
   differences.push({
     component: '.nvmrc file',
@@ -63,7 +66,7 @@ export async function diffCommand() {
     status: nvmrcExists ? 'match' : 'missing',
   });
 
-  // 6. Verificar Package Manager
+  // 6. Check Package Manager
   const [pm] = config.runtime.packageManager.includes('@')
     ? config.runtime.packageManager.split('@')
     : [config.runtime.packageManager];
@@ -76,7 +79,7 @@ export async function diffCommand() {
     status: hasPM ? 'match' : 'missing',
   });
 
-  // 7. Verificar dependencias globales
+  // 7. Check global dependencies
   if (config.dependencies?.global) {
     for (const dep of config.dependencies.global) {
       const isInstalled = await hasGlobalPackage(dep);
@@ -89,7 +92,7 @@ export async function diffCommand() {
     }
   }
 
-  // 8. Verificar extensiones VSCode
+  // 8. Check VSCode extensions
   const vscodeAvailable = await hasVSCodeCLI();
   
   if (config.extensions?.vscode && vscodeAvailable) {
@@ -111,7 +114,7 @@ export async function diffCommand() {
     });
   }
 
-  // 9. Mostrar tabla de diferencias
+  // 9. Display differences table
   const table = new Table({
     head: [
       chalk.bold('Component'),
@@ -154,7 +157,7 @@ export async function diffCommand() {
 
   console.log(table.toString());
 
-  // 10. Resumen
+  // 10. Summary
   console.log();
   console.log(chalk.bold('📊 Summary:\n'));
   console.log(chalk.green(`  ✓ Matching: ${matchCount}`));
@@ -169,7 +172,7 @@ export async function diffCommand() {
 
   if (mismatchCount > 0 || missingCount > 0) {
     console.log(chalk.blue('💡 To fix differences:'));
-    console.log(chalk.gray('   envsync sync\n'));
+    gray('   envsync sync\n');
   } else {
     console.log(chalk.green('✨ Everything matches! No action needed.\n'));
   }

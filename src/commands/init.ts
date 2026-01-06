@@ -5,6 +5,7 @@ import yaml from 'yaml';
 import ora from 'ora';
 import { AngularDetector } from '../core/angular-detector.js';
 import { EnvSyncConfig } from '../types/index.types.js';
+import { verbose, error, warning, success, gray } from '../utils/logger.js';
 
 
 interface InitOptions {
@@ -14,50 +15,52 @@ interface InitOptions {
 export async function initCommand(options: InitOptions) {
   console.log(chalk.blue.bold('\n🚀 EnvSync - Initialize Angular Project\n'));
 
-  // Verificar si ya existe envsync.yaml
+  // Check if envsync.yaml already exists
   if (existsSync('envsync.yaml') && !options.force) {
-    console.log(chalk.yellow('⚠️  envsync.yaml already exists!'));
-    console.log(chalk.gray('Use --force to overwrite\n'));
+    warning('envsync.yaml already exists!');
+    gray('Use --force to overwrite\n');
     process.exit(1);
   }
 
+  verbose('Starting Angular project detection...');
   const spinner = ora('Detecting Angular project...').start();
-  
+
   const detector = new AngularDetector();
   const isAngular = await detector.isAngularProject();
 
   if (!isAngular) {
     spinner.fail('Not an Angular project');
-    console.log(chalk.red('\n❌ This is not an Angular project'));
-    console.log(chalk.gray('Make sure you are in an Angular project directory'));
-    console.log(chalk.gray('Or create one with: ng new my-app\n'));
+    error('This is not an Angular project');
+    gray('Make sure you are in an Angular project directory');
+    gray('Or create one with: ng new my-app\n');
     process.exit(1);
   }
 
   const angularProject = await detector.detectAngularProject();
-  
+
   if (!angularProject) {
     spinner.fail('Could not detect Angular configuration');
+    error('Could not detect Angular configuration');
     process.exit(1);
   }
 
   spinner.succeed(`Angular ${angularProject.version} detected`);
 
-  // Mostrar configuración detectada
-  console.log(chalk.gray('\nDetected configuration:'));
-  console.log(chalk.gray(`  Angular: ${angularProject.version}`));
-  console.log(chalk.gray(`  Package Manager: ${angularProject.packageManager}`));
-  console.log(chalk.gray(`  Recommended Node: ${angularProject.nodeVersion}`));
-  console.log(chalk.gray(`  Has Nx: ${angularProject.hasNx ? 'Yes' : 'No'}`));
-  console.log(chalk.gray(`  Angular CLI: ${angularProject.hasCLI ? 'Installed' : 'Not installed'}\n`));
+  // Display detected configuration
+  gray('\nDetected configuration:');
+  gray(`  Angular: ${angularProject.version}`);
+  gray(`  Package Manager: ${angularProject.packageManager}`);
+  gray(`  Recommended Node: ${angularProject.nodeVersion}`);
+  gray(`  Has Nx: ${angularProject.hasNx ? 'Yes' : 'No'}`);
+  gray(`  Angular CLI: ${angularProject.hasCLI ? 'Installed' : 'Not installed'}\n`);
 
-  // Preguntas interactivas
+  // Interactive questions
   const answers = await inquirer.prompt([
     {
       type: 'input',
       name: 'projectName',
       message: 'Project name:',
-      default: process.cwd().split(/[\\/]/).pop(), // Funciona en Windows y Unix
+      default: process.cwd().split(/[\\/]/).pop(), // Works on Windows and Unix
     },
     {
       type: 'input',
@@ -83,7 +86,7 @@ export async function initCommand(options: InitOptions) {
     },
   ]);
 
-  // Crear configuración
+  // Create configuration
   const config: EnvSyncConfig = {
     project: {
       name: answers.projectName,
@@ -103,36 +106,43 @@ export async function initCommand(options: InitOptions) {
     },
   };
 
-  // Agregar Nx si existe
+  // Add Nx if exists
   if (angularProject.hasNx) {
     config.dependencies.global.push('nx@latest');
   }
 
-  // Agregar extensiones VSCode
+  // Add VSCode extensions
   if (answers.includeVSCodeExtensions) {
     config.extensions = { 
       vscode: detector.getRecommendedExtensions(angularProject.hasNx) 
     };
   }
 
-  // Scripts post-sync
+  // Post-sync scripts
   const postSyncScripts = [`${answers.packageManager} install`];
   
-  // Agregar husky si existe
+  // Add husky if exists
   if (existsSync('.husky')) {
     postSyncScripts.push('npx husky install');
   }
 
-  config.scripts = { 'post-sync': postSyncScripts };
+  config.scripts = { 'post-sync': postSyncScripts, 'pre-sync': [] };
 
-  // Guardar archivo YAML
-  const yamlContent = yaml.stringify(config, { indent: 2, lineWidth: -1 });
+  // Save YAML file with format that avoids parsing issues
+  verbose('Generating envsync.yaml file...');
+  const yamlContent = yaml.stringify(config, {
+    indent: 2,
+    lineWidth: -1,
+    // Ensures that strings with : are serialized in quotes
+    defaultStringType: 'QUOTE_DOUBLE',
+  });
   writeFileSync('envsync.yaml', yamlContent);
+  verbose('envsync.yaml file written successfully');
 
-  console.log(chalk.green('\n✅ envsync.yaml created successfully!\n'));
-  console.log(chalk.gray('Next steps:'));
-  console.log(chalk.gray('  1. Review: envsync.yaml'));
-  console.log(chalk.gray('  2. Commit: git add envsync.yaml && git commit -m "Add EnvSync config"'));
-  console.log(chalk.gray('  3. Share: Team members run "envsync sync"'));
-  console.log(chalk.gray('  4. Code: ng serve\n'));
+  success('envsync.yaml created successfully!\n');
+  gray('Next steps:');
+  gray('  1. Review: envsync.yaml');
+  gray('  2. Commit: git add envsync.yaml && git commit -m "Add EnvSync config"');
+  gray('  3. Share: Team members run "envsync sync"');
+  gray('  4. Code: ng serve\n');
 }

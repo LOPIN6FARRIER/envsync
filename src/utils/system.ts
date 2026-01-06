@@ -4,7 +4,8 @@ import { existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 /**
- * Obtiene la versión actual de Node instalada
+ * Gets the currently installed Node.js version
+ * @returns The current Node.js version without the 'v' prefix, or null if not installed
  */
 export async function getCurrentNodeVersion(): Promise<string | null> {
   try {
@@ -16,14 +17,16 @@ export async function getCurrentNodeVersion(): Promise<string | null> {
 }
 
 /**
- * Verifica si nvm está instalado
+ * Checks if nvm (Node Version Manager) is installed on the system
+ * Supports both Windows (nvm-windows) and Unix-based systems
+ * @returns true if nvm is installed, false otherwise
  */
 export async function hasNVM(): Promise<boolean> {
   try {
     const isWindows = platform() === 'win32';
     const command = isWindows ? 'nvm' : 'bash';
     const args = isWindows ? ['version'] : ['-c', 'command -v nvm'];
-    
+
     await execa(command, args, { stdio: 'ignore' });
     return true;
   } catch {
@@ -32,12 +35,14 @@ export async function hasNVM(): Promise<boolean> {
 }
 
 /**
- * Verifica si una versión específica de Node está instalada en nvm
+ * Checks if a specific Node.js version is installed in nvm
+ * @param version - The Node.js version to check (e.g., "20.11.1")
+ * @returns true if the version is installed, false otherwise
  */
 export async function isNodeVersionInstalled(version: string): Promise<boolean> {
   try {
     const isWindows = platform() === 'win32';
-    
+
     if (isWindows) {
       const { stdout } = await execa('nvm', ['list']);
       return stdout.includes(version);
@@ -54,11 +59,12 @@ export async function isNodeVersionInstalled(version: string): Promise<boolean> 
 }
 
 /**
- * Instala una versión de Node usando nvm
+ * Installs a specific Node.js version using nvm
+ * @param version - The Node.js version to install (e.g., "20.11.1")
  */
 export async function installNodeVersion(version: string): Promise<void> {
   const isWindows = platform() === 'win32';
-  
+
   if (isWindows) {
     await execa('nvm', ['install', version], { stdio: 'inherit' });
   } else {
@@ -70,11 +76,12 @@ export async function installNodeVersion(version: string): Promise<void> {
 }
 
 /**
- * Cambia a una versión específica de Node usando nvm
+ * Switches to a specific Node.js version using nvm
+ * @param version - The Node.js version to use (e.g., "20.11.1")
  */
 export async function useNodeVersion(version: string): Promise<void> {
   const isWindows = platform() === 'win32';
-  
+
   if (isWindows) {
     await execa('nvm', ['use', version], { stdio: 'inherit' });
   } else {
@@ -86,14 +93,17 @@ export async function useNodeVersion(version: string): Promise<void> {
 }
 
 /**
- * Crea archivo .nvmrc para auto-switching
+ * Creates an .nvmrc file for automatic Node.js version switching
+ * @param version - The Node.js version to set in the .nvmrc file
  */
 export async function createNvmrc(version: string): Promise<void> {
   writeFileSync('.nvmrc', version);
 }
 
 /**
- * Verifica si un package manager está instalado
+ * Checks if a package manager is installed
+ * @param pm - The package manager name (e.g., "npm", "pnpm", "yarn")
+ * @returns true if the package manager is installed, false otherwise
  */
 export async function hasPackageManager(pm: string): Promise<boolean> {
   try {
@@ -105,15 +115,16 @@ export async function hasPackageManager(pm: string): Promise<boolean> {
 }
 
 /**
- * Verifica si un paquete global está instalado
- * También verifica si está disponible localmente en node_modules
+ * Checks if a global package is installed
+ * Also checks if the package is available locally in node_modules
+ * @param pkg - The package name (e.g., "@angular/cli@19.2.0" or "nx@latest")
+ * @returns true if the package is installed globally or locally, false otherwise
  */
 export async function hasGlobalPackage(pkg: string): Promise<boolean> {
-  // Extraer el nombre base del paquete (sin versión)
   const packageName = extractPackageName(pkg);
-  
+
   try {
-    // Mapeo de paquetes a comandos CLI
+    // Map packages to their CLI commands
     const commandMap: Record<string, string> = {
       '@angular/cli': 'ng',
       'angular/cli': 'ng',
@@ -128,23 +139,25 @@ export async function hasGlobalPackage(pkg: string): Promise<boolean> {
 
     const command = commandMap[packageName] || packageName;
 
-    // Intentar ejecutar el comando
+    // Try to execute the command
     await execa(command, ['--version'], {
       stdio: 'ignore',
       timeout: 5000,
-      preferLocal: true, // Busca en node_modules/.bin primero
+      preferLocal: true, // Look in node_modules/.bin first
     });
 
     return true;
   } catch {
-    // Si falla globalmente, verificar si existe localmente
+    // If global check fails, verify if it exists locally
     return hasLocalPackage(packageName);
   }
 }
 
 /**
- * Extrae el nombre del paquete sin la versión
- * Ejemplos:
+ * Extracts the package name without the version specifier
+ * @param pkg - The full package string (e.g., "@angular/cli@19.2.0")
+ * @returns The package name without version (e.g., "@angular/cli")
+ * @example
  *   '@angular/cli@19.2.0' -> '@angular/cli'
  *   'nx@latest' -> 'nx'
  */
@@ -160,7 +173,9 @@ function extractPackageName(pkg: string): string {
 }
 
 /**
- * Verifica si un paquete está instalado localmente en node_modules
+ * Checks if a package is installed locally in node_modules
+ * @param packageName - The package name to check
+ * @returns true if the package exists in local node_modules, false otherwise
  */
 function hasLocalPackage(packageName: string): boolean {
   const localPath = join(process.cwd(), 'node_modules', packageName);
@@ -168,7 +183,9 @@ function hasLocalPackage(packageName: string): boolean {
 }
 
 /**
- * Verifica si una extensión de VSCode está instalada
+ * Checks if a VSCode extension is installed
+ * @param extension - The extension ID (e.g., "angular.ng-template")
+ * @returns true if the extension is installed, false otherwise
  */
 export async function hasVSCodeExtension(extension: string): Promise<boolean> {
   try {
@@ -180,7 +197,8 @@ export async function hasVSCodeExtension(extension: string): Promise<boolean> {
 }
 
 /**
- * Verifica si VSCode CLI está disponible
+ * Checks if the VSCode CLI is available in the system
+ * @returns true if the 'code' command is available, false otherwise
  */
 export async function hasVSCodeCLI(): Promise<boolean> {
   try {
@@ -192,7 +210,8 @@ export async function hasVSCodeCLI(): Promise<boolean> {
 }
 
 /**
- * Instala nvm de forma interactiva
+ * Installs nvm interactively with user guidance
+ * Provides platform-specific installation instructions for Windows and Unix-based systems
  */
 export async function installNVMInteractive(): Promise<void> {
   const isWindows = platform() === 'win32';
@@ -209,7 +228,7 @@ export async function installNVMInteractive(): Promise<void> {
     console.log(chalk.gray('2. Run the installer (nvm-setup.exe)'));
     console.log(chalk.gray('3. Follow the installation wizard'));
     console.log(chalk.gray('4. Restart your terminal\n'));
-    
+
     const { shouldOpenBrowser } = await inquirer.prompt([
       {
         type: 'confirm',
@@ -220,7 +239,7 @@ export async function installNVMInteractive(): Promise<void> {
     ]);
 
     if (shouldOpenBrowser) {
-      // Abrir browser en Windows
+      // Open browser on Windows
       await execa('cmd', ['/c', 'start', 'https://github.com/coreybutler/nvm-windows/releases']);
       console.log(chalk.green('\n✓ Opened browser\n'));
     }
@@ -237,7 +256,7 @@ export async function installNVMInteractive(): Promise<void> {
       });
 
       spinner.succeed('nvm installed successfully');
-      
+
       console.log(chalk.gray('\n📝 nvm has been installed!'));
       console.log(chalk.gray('To use it, run one of these commands:\n'));
       console.log(chalk.yellow('  source ~/.bashrc'));
