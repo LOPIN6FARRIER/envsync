@@ -18,7 +18,7 @@ EnvSync is a command-line tool that helps Angular development teams maintain con
 ## Installation
 
 ```bash
-npm install -g envsync-cli
+npm install -g @lopin6farrier/envsync
 ```
 
 ## Quick Start
@@ -200,7 +200,7 @@ scripts:
 ```bash
 git clone <repo>
 cd <repo>
-npm install -g envsync-cli
+npm install -g @lopin6farrier/envsync
 envsync sync
 ```
 
@@ -343,7 +343,7 @@ Vinicio
 
 - [GitHub Repository](https://github.com/LOPIN6FARRIER/envsync)
 - [Issue Tracker](https://github.com/LOPIN6FARRIER/envsync/issues)
-- [npm Package](https://www.npmjs.com/package/envsync-cli)
+- [npm Package](https://www.npmjs.com/package/@lopin6farrier/envsync)
 
 ## Related Projects
 

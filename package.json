@@ -1,5 +1,5 @@
 {
-  "name": "envsync-cli",
+  "name": "@lopin6farrier/envsync",
   "version": "0.1.0",
   "description": "Sync development environments for Angular teams",
   "type": "module",
@@ -7,11 +7,20 @@
   "bin": {
     "envsync": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run build"
   },
   "keywords": ["angular", "dev-environment", "sync", "cli", "node", "npm", "version-management"],
   "author": "Vinicio",
